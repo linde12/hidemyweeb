@@ -1,0 +1,10 @@
+[package]
+name = "hidemyweeb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.98"
+pipewire = "0.8.0"
+tokio = { version = "1.44.2", features = ["full"] }
+zbus = "5.5.0"
