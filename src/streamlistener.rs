@@ -1,24 +1,12 @@
 use pipewire as pw;
 use pipewire::node::NodeState;
-use pipewire::prelude::*;
 use pipewire::proxy::{Listener, ProxyListener, ProxyT};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc};
-use std::{
-    rc::{Rc, Weak},
-    u32,
-};
+use std::{rc::Rc, u32};
+use tokio::sync::mpsc::Sender;
 
-use pipewire::{
-    context::Context,
-    main_loop::MainLoop,
-    node::Node,
-    registry::{self, Registry},
-    spa::param::ParamType,
-    types::ObjectType,
-};
+use pipewire::{context::Context, main_loop::MainLoop, node::Node, types::ObjectType};
 
 struct Proxies {
     proxies_t: HashMap<u32, Box<dyn ProxyT>>,
@@ -56,13 +44,18 @@ impl Proxies {
     }
 }
 
-pub struct VideoInfo {
+#[derive(Debug)]
+pub struct NodeInfo {
     pub id: u32,
+    /// Whether this node is a live-stream node.
     pub is_live: bool,
+    /// Whether this node is currently running.
     pub running: bool,
 }
 pub enum Message {
-    VideoInformation(VideoInfo),
+    NodeInfo(NodeInfo),
+    /// Node ID removed.
+    NodeRemoved(u32),
 }
 
 pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
@@ -73,9 +66,6 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
     let core = context.connect(None)?;
     let registry = Rc::new(core.get_registry()?);
     let registry_weak = Rc::downgrade(&registry);
-
-    // let listeners = Rc::new(RefCell::new(Vec::new()));
-    // let listeners_clone = Rc::clone(&listeners);
 
     let proxies = Rc::new(RefCell::new(Proxies::new()));
     let _reg_listener = registry
@@ -88,27 +78,27 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
             if let Some(registry) = registry_weak.upgrade() {
                 if let Some(props) = &global.props {
                     if props.get("media.class") == Some("Video/Source") {
-                        println!("New video source node: {:?}", global);
+                        println!("New video source node detected");
 
                         // Bind node
                         let node: Node = registry.bind(global).unwrap();
+                        let proxy_id = node.upcast_ref().id();
 
-                        // Store listener
-                        // let node_clone = node.clone();
                         let tx_clone = tx.clone();
                         let listener = node
                             .add_listener_local()
                             .info(move |info| {
-                                // println!("✅ GOT INFO");
-                                // dbg!(info);
-
-                                let is_live =
-                                    info.props().unwrap().get("stream.is-live").unwrap_or("");
+                                let is_live = info
+                                    .props()
+                                    .unwrap()
+                                    .get("stream.is-live")
+                                    .map(|v| v == "true")
+                                    .unwrap_or(false);
 
                                 tx_clone
-                                    .send(Message::VideoInformation(VideoInfo {
-                                        id: info.id(),
-                                        is_live: is_live == "true",
+                                    .blocking_send(Message::NodeInfo(NodeInfo {
+                                        id: proxy_id,
+                                        is_live,
                                         running: matches!(&info.state(), NodeState::Running),
                                     }))
                                     .unwrap();
@@ -118,13 +108,16 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
                             .register();
 
                         let node = Box::new(node);
-                        let listener = Box::new(listener);
                         let proxy = node.upcast_ref();
-                        let proxy_id = proxy.id();
+                        let listener = Box::new(listener);
                         let proxies_weak = Rc::downgrade(&proxies);
+                        let tx_clone = tx.clone();
                         let remove_listener = proxy
                             .add_listener_local()
                             .removed(move || {
+                                tx_clone
+                                    .blocking_send(Message::NodeRemoved(proxy_id))
+                                    .unwrap();
                                 if let Some(proxies) = proxies_weak.upgrade() {
                                     proxies.borrow_mut().remove(proxy_id);
                                 }
@@ -134,13 +127,9 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
                         proxies
                             .borrow_mut()
                             .add_proxy_listener(proxy_id, remove_listener);
-                        // listeners_clone.borrow_mut().push(listener);
                     }
                 }
             }
-        })
-        .global_remove(|global| {
-            // println!("🔴 Global removed");
         })
         .register();
 
