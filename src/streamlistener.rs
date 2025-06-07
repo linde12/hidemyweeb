@@ -102,8 +102,6 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
                                         running: matches!(&info.state(), NodeState::Running),
                                     }))
                                     .unwrap();
-                                // dbg!(node_clone.clone()); // required or info wont be called,
-                                // because then node is dropped
                             })
                             .register();
 
@@ -132,9 +130,6 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
             }
         })
         .register();
-
-    // Force sync after setting up registry listener
-    // core.sync(0);
 
     mainloop.run();
 

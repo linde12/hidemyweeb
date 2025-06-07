@@ -69,7 +69,6 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
-    // client().await
     t_handle.join().unwrap();
 
     Ok(())
