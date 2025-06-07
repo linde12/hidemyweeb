@@ -1,20 +1,26 @@
+use rand::seq::IndexedRandom;
+mod message;
 use std::collections::HashMap;
 
-use streamlistener::Message;
+use message::{Message, NodeInfo};
 use tokio::{process::Command, select, sync::mpsc};
 use zbus::Connection;
 
+mod config;
 mod notifications;
 mod streamlistener;
+mod tray;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cfg = config::Config::new()?;
+    let mut tray = tray::Tray::new();
     let (tx, mut rx) = mpsc::channel::<Message>(1);
     let t_handle = std::thread::spawn(move || {
-        streamlistener::listen(tx).unwrap();
+        streamlistener::listen(tx.clone()).unwrap();
     });
 
-    let mut nodes: HashMap<u32, streamlistener::NodeInfo> = HashMap::new();
+    let mut nodes: HashMap<u32, NodeInfo> = HashMap::new();
     let mut debounce_deadline = None;
 
     loop {
@@ -49,23 +55,24 @@ async fn main() -> anyhow::Result<()> {
                 // check if any nodes are live
                 let any_live_nodes = nodes.values().any(|node| node.running && node.is_live);
                 set_dnd(any_live_nodes).await?;
-                if any_live_nodes {
-                    println!("Live!");
-                    Command::new("swww")
-                        .arg("img")
-                        .arg("--transition-type=none")
-                        .arg("/home/linde/.local/share/wallpapers/totoro.png")
-                        .spawn()
-                        .expect("Failed to change bg");
-                } else {
-                    println!("Not live!");
-                    Command::new("swww")
-                            .arg("img")
-                            .arg("--transition-type=none")
-                            .arg("/home/linde/.local/share/wallpapers/wp6982689-uzaki-chan-wants-to-hang-out-wallpapers.png")
-                            .spawn()
-                            .expect("Failed to change bg");
-                }
+                set_wallpaper(&mut tray, any_live_nodes, &cfg);
+            //     if any_live_nodes {
+            //         tray.set_icon(tray::IconType::Recording);
+            //         // use one of the whitelisted wallpapers at random
+            //         Command::new("swww")
+            //             .arg("img")
+            //             .arg("--transition-type=none")
+            //             .arg("/home/linde/.local/share/wallpapers/totoro.png")
+            //             .spawn()
+            //             .expect("Failed to change bg");
+            //     } else {
+            //         tray.set_icon(tray::IconType::Idle);
+            //         Command::new("swww")
+            //                 .arg("img")
+            //                 .arg("--transition-type=none")
+            //                 .arg("/home/linde/.local/share/wallpapers/wp6982689-uzaki-chan-wants-to-hang-out-wallpapers.png")
+            //                 .spawn()
+            //                 .expect("Failed to change bg"); }
             }
         }
     }
@@ -86,4 +93,20 @@ async fn set_dnd(flag: bool) -> anyhow::Result<()> {
     let proxy = notifications::NotificationsProxy::new(&connection).await?;
     proxy.set_dont_disturb(flag).await?;
     Ok(())
+}
+
+fn set_wallpaper(tray: &mut tray::Tray, any_live_nodes: bool, cfg: &config::Config) {
+    if any_live_nodes {
+        tray.set_icon(tray::IconType::Recording);
+        if let Some(wall) = cfg.wallpaper_whitelist.choose(&mut rand::rng()) {
+            Command::new("swww")
+                .arg("img")
+                .arg("--transition-type=none")
+                .arg(cfg.wallpaper_directory.join(wall))
+                .spawn()
+                .expect("Failed to change bg");
+        }
+    } else {
+        tray.set_icon(tray::IconType::Idle);
+    }
 }

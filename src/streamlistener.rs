@@ -1,3 +1,4 @@
+use crate::message::{Message, NodeInfo};
 use pipewire as pw;
 use pipewire::node::NodeState;
 use pipewire::proxy::{Listener, ProxyListener, ProxyT};
@@ -44,20 +45,6 @@ impl Proxies {
     }
 }
 
-#[derive(Debug)]
-pub struct NodeInfo {
-    pub id: u32,
-    /// Whether this node is a live-stream node.
-    pub is_live: bool,
-    /// Whether this node is currently running.
-    pub running: bool,
-}
-pub enum Message {
-    NodeInfo(NodeInfo),
-    /// Node ID removed.
-    NodeRemoved(u32),
-}
-
 pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
     pw::init();
 
@@ -78,8 +65,6 @@ pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
             if let Some(registry) = registry_weak.upgrade() {
                 if let Some(props) = &global.props {
                     if props.get("media.class") == Some("Video/Source") {
-                        println!("New video source node detected");
-
                         // Bind node
                         let node: Node = registry.bind(global).unwrap();
                         let proxy_id = node.upcast_ref().id();
