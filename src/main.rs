@@ -91,7 +91,9 @@ async fn sleep(t: Option<tokio::time::Instant>) -> Option<()> {
 async fn set_dnd(flag: bool) -> anyhow::Result<()> {
     let connection = Connection::session().await?;
     let proxy = notifications::NotificationsProxy::new(&connection).await?;
-    proxy.set_dont_disturb(flag).await?;
+    if let Err(e) = proxy.set_dont_disturb(flag).await {
+        eprintln!("Failed to set DND: {}", e);
+    }
     Ok(())
 }
 
