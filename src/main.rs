@@ -7,6 +7,7 @@ use tokio::{process::Command, select, sync::mpsc};
 use zbus::Connection;
 
 mod config;
+mod dconf;
 mod notifications;
 mod streamlistener;
 mod tray;
@@ -54,25 +55,8 @@ async fn main() -> anyhow::Result<()> {
                 debounce_deadline = None;
                 // check if any nodes are live
                 let any_live_nodes = nodes.values().any(|node| node.running && node.is_live);
-                set_dnd(any_live_nodes).await?;
+                set_dnd(any_live_nodes).await;
                 set_wallpaper(&mut tray, any_live_nodes, &cfg);
-            //     if any_live_nodes {
-            //         tray.set_icon(tray::IconType::Recording);
-            //         // use one of the whitelisted wallpapers at random
-            //         Command::new("swww")
-            //             .arg("img")
-            //             .arg("--transition-type=none")
-            //             .arg("/home/linde/.local/share/wallpapers/totoro.png")
-            //             .spawn()
-            //             .expect("Failed to change bg");
-            //     } else {
-            //         tray.set_icon(tray::IconType::Idle);
-            //         Command::new("swww")
-            //                 .arg("img")
-            //                 .arg("--transition-type=none")
-            //                 .arg("/home/linde/.local/share/wallpapers/wp6982689-uzaki-chan-wants-to-hang-out-wallpapers.png")
-            //                 .spawn()
-            //                 .expect("Failed to change bg"); }
             }
         }
     }
@@ -88,13 +72,10 @@ async fn sleep(t: Option<tokio::time::Instant>) -> Option<()> {
     }
 }
 
-async fn set_dnd(flag: bool) -> anyhow::Result<()> {
-    let connection = Connection::session().await?;
-    let proxy = notifications::NotificationsProxy::new(&connection).await?;
-    if let Err(e) = proxy.set_dont_disturb(flag).await {
-        eprintln!("Failed to set DND: {}", e);
+async fn set_dnd(flag: bool) {
+    if let Err(e) = dconf::set_bool("/io/astal/notifd/dont-disturb", flag) {
+        eprintln!("Failed to set dconf DND: {}", e);
     }
-    Ok(())
 }
 
 fn set_wallpaper(tray: &mut tray::Tray, any_live_nodes: bool, cfg: &config::Config) {
