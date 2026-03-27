@@ -2,14 +2,14 @@
 
 > Hide my shitty weeb wallpapers when sharing my screen
 
-Uses pipewire, dbus & swww.
+Uses pipewire, dbus & awww.
 
 Features:
+
 - Hides your weeby wallpaper by randomly selecting a wallpaper from a whitelist when sharing your
-screen
+  screen
 - Disables notifications when sharing your screen
 - Displays a tray icon indicating whether you are sharing your screen or not
-
 
 ## Installation
 
@@ -35,4 +35,3 @@ Then run the application:
 ```bash
 hidemyweeb
 ```
-
