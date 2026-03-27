@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use message::{Message, NodeInfo};
 use tokio::{process::Command, select, sync::mpsc};
-use zbus::Connection;
 
 mod config;
 mod dconf;
@@ -82,7 +81,7 @@ fn set_wallpaper(tray: &mut tray::Tray, any_live_nodes: bool, cfg: &config::Conf
     if any_live_nodes {
         tray.set_icon(tray::IconType::Recording);
         if let Some(wall) = cfg.wallpaper_whitelist.choose(&mut rand::rng()) {
-            Command::new("swww")
+            Command::new("awww")
                 .arg("img")
                 .arg("--transition-type=none")
                 .arg(cfg.wallpaper_directory.join(wall))
