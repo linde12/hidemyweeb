@@ -6,7 +6,6 @@ use message::{Message, NodeInfo};
 use tokio::{process::Command, select, sync::mpsc};
 
 mod config;
-mod dconf;
 mod notifications;
 mod streamlistener;
 mod tray;
@@ -72,8 +71,18 @@ async fn sleep(t: Option<tokio::time::Instant>) -> Option<()> {
 }
 
 async fn set_dnd(flag: bool) {
-    if let Err(e) = dconf::set_bool("/io/astal/notifd/dont-disturb", flag) {
-        eprintln!("Failed to set dconf DND: {}", e);
+    if flag {
+        Command::new("makoctl")
+            .args(&["mode", "-a", "do-not-disturb"])
+            .status()
+            .await
+            .expect("Failed to set DND");
+    } else {
+        Command::new("makoctl")
+            .args(&["mode", "-r", "do-not-disturb"])
+            .status()
+            .await
+            .expect("Failed to set DND");
     }
 }
 
