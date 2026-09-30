@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::{rc::Rc, u32};
 use tokio::sync::mpsc::Sender;
 
-use pipewire::{context::Context, main_loop::MainLoop, node::Node, types::ObjectType};
+use pipewire::{context::ContextRc, main_loop::MainLoopRc, node::Node, types::ObjectType};
 
 struct Proxies {
     proxies_t: HashMap<u32, Box<dyn ProxyT>>,
@@ -48,10 +48,10 @@ impl Proxies {
 pub fn listen(tx: Sender<Message>) -> anyhow::Result<()> {
     pw::init();
 
-    let mainloop = MainLoop::new(None)?;
-    let context = Context::new(&mainloop)?;
-    let core = context.connect(None)?;
-    let registry = Rc::new(core.get_registry()?);
+    let mainloop = MainLoopRc::new(None)?;
+    let context = ContextRc::new(&mainloop, None)?;
+    let core = context.connect_rc(None)?;
+    let registry = Rc::new(core.get_registry_rc()?);
     let registry_weak = Rc::downgrade(&registry);
 
     let proxies = Rc::new(RefCell::new(Proxies::new()));
